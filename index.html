@@ -47,6 +47,9 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,4.4vw,48px);l
 h1 mark{background:linear-gradient(transparent 55%, var(--pto) 55%, var(--pto) 92%, transparent 92%);color:inherit;padding:0 .08em}
 h1 s{text-decoration:none;background:repeating-linear-gradient(135deg,var(--blk-soft) 0 6px,transparent 6px 10px);box-shadow:inset 0 -3px 0 var(--blk);padding:0 .08em}
 .lede{color:var(--muted);max-width:64ch;margin:0}
+.top-bar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 16px}
+.repo-link{font-size:13px;font-weight:600;color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.repo-link:hover{text-decoration-color:var(--ink)}
 
 .shell{display:grid;grid-template-columns:340px minmax(0,1fr);gap:28px;align-items:start}
 @media (max-width:960px){.shell{grid-template-columns:minmax(0,1fr)}}
@@ -195,7 +198,10 @@ h1 s{text-decoration:none;background:repeating-linear-gradient(135deg,var(--blk-
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">PTO Bridge Planner · US federal holidays</div>
+    <div class="top-bar">
+      <div class="eyebrow">PTO Bridge Planner · US federal holidays</div>
+      <a class="repo-link" href="https://github.com/jenniferlynparsons/pto-calculator" target="_blank" rel="noopener">Source on GitHub <span aria-hidden="true">↗</span></a>
+    </div>
     <h1>Stretch your PTO around holidays, and around the days you <s>can't miss</s>.</h1>
     <p class="lede">Set your PTO balance and vacation style, then mark blackout days on the calendar. The plan recalculates as you go, bridges holidays and weekends for the most days off, and never touches a blackout.</p>
   </header>
