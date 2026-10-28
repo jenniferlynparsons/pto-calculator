@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A PTO optimizer that bridges US holidays and weekends, with blackout dates, reserve days and rules for how you like your time off spread across the year.">
+<title>PTO Bridge Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: wall-planner. Settings rail on the left, a highlighter-marked year chart and the break list on the right. */
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#16202F; --muted:#5A6476; --line:#D8DDE6; --soft:#E9EDF3;
+  --pto:#FFD545; --pto-ink:#2A2100; --pto-bar:#E0A800;
+  --hol:#E4DCFF; --hol-ink:#4B2FC2;
+  --wk:#E6EAF0; --wk-ink:#6D7688;
+  --co:#CDEFE8; --co-ink:#0D6B5A;
+  --pre:#CFE1FF; --pre-ink:#1F4FB8;
+  --blk:#E0344B; --blk-soft:#FBE1E4; --blk-ink:#A3182C;
+  --focus:#2F6FEB;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"Public Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --bg:#0F131A; --surface:#171C25; --ink:#E7EBF2; --muted:#98A1B3; --line:#2A3140; --soft:#1F2531;
+  --pto:#F2C935; --pto-ink:#1C1500; --pto-bar:#F2C935;
+  --hol:#2E2557; --hol-ink:#C3B4FF;
+  --wk:#222937; --wk-ink:#8C95A7;
+  --co:#123B35; --co-ink:#7FDCC8;
+  --pre:#1C3260; --pre-ink:#A9C6FF;
+  --blk:#FF5A6E; --blk-soft:#3A1A20; --blk-ink:#FF9AA7;
+  --focus:#7FA8FF; color-scheme:dark;
+}}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1320px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+
+header.top{display:grid;gap:10px;margin-bottom:24px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,4.4vw,48px);line-height:1.05;letter-spacing:-.02em;margin:0;max-width:22ch;text-wrap:balance}
+h1 mark{background:linear-gradient(transparent 55%, var(--pto) 55%, var(--pto) 92%, transparent 92%);color:inherit;padding:0 .08em}
+h1 s{text-decoration:none;background:repeating-linear-gradient(135deg,var(--blk-soft) 0 6px,transparent 6px 10px);box-shadow:inset 0 -3px 0 var(--blk);padding:0 .08em}
+.lede{color:var(--muted);max-width:64ch;margin:0}
+
+.shell{display:grid;grid-template-columns:340px minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:960px){.shell{grid-template-columns:minmax(0,1fr)}}
+
+/* Settings rail */
+.rail{display:grid;gap:14px}
+@media (min-width:961px){.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);max-height:calc(100vh - 32px);overflow:auto;padding-right:4px}}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:10px}
+.step h2{font-family:var(--display);font-size:16px;font-weight:700;margin:0;display:flex;gap:10px;align-items:baseline}
+.step h2 .n{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:500}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper button{width:40px;height:40px;border-radius:8px;border:1px solid var(--line);background:var(--soft);cursor:pointer;font-size:18px}
+.stepper input{width:80px;height:40px;text-align:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-family:var(--mono);font-size:20px;font-weight:600}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg label{flex:1;min-width:64px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;text-align:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-family:var(--mono);font-weight:500}
+.seg input:checked + span{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.seg input:focus-visible + span{outline:2px solid var(--focus);outline-offset:2px}
+.styles{display:grid;gap:6px}
+.styles label{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;align-items:center}
+.styles input{grid-row:span 2;accent-color:var(--ink);width:16px;height:16px;margin:0}
+.styles b{font-weight:600;font-size:14px}
+.styles small{color:var(--muted);font-size:12px;grid-column:2}
+.styles label:has(input:checked){border-color:var(--ink);background:var(--soft)}
+.dows{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dows label{position:relative}
+.dows input{position:absolute;opacity:0;pointer-events:none}
+.dows span{display:block;text-align:center;padding:7px 0;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--mono)}
+.dows input:checked + span{background:var(--wk);color:var(--ink);border-color:var(--wk-ink)}
+.dows input:focus-visible + span{outline:2px solid var(--focus);outline-offset:2px}
+.pref-day{display:grid;gap:6px}
+.pref-day .seg span{font-family:var(--body);font-size:13px}
+.num-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.num-label{font-size:13px;font-weight:600}
+.chips{display:flex;align-items:center;gap:6px}
+.chips button{padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-family:var(--mono);font-size:12px}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.rules{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px;color:var(--muted)}
+.dows.mons{grid-template-columns:repeat(6,1fr)}
+.dows.mons input:checked + span{background:var(--surface);color:var(--ink);border:1.5px dashed var(--ink)}
+.cv.manual{border-style:dashed;border-color:var(--muted)}
+.month h3 .mine{color:var(--ink);border:1px dashed var(--muted);border-radius:999px;padding:0 6px}
+.hols{display:grid;gap:2px}
+.hols label{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:13px;padding:4px 2px;cursor:pointer}
+.hols input{accent-color:var(--hol-ink);margin:0}
+.hols .d{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.hols .extra{border-top:1px dashed var(--line);margin-top:4px;padding-top:6px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer}
+.check input{margin-top:3px}
+
+/* Results */
+.main{display:grid;gap:22px;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stat{background:var(--surface);padding:14px 16px;display:grid;gap:2px}
+.stat .k{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.stat .v{font-family:var(--display);font-size:30px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat .v small{font-family:var(--body);font-size:14px;font-weight:500;color:var(--muted)}
+.stat.hi .v{box-shadow:inset 0 -10px 0 var(--pto);justify-self:start;padding:0 2px}
+.stat.blk .v{color:var(--blk-ink)}
+.note{font-size:13px;border-radius:8px;padding:10px 12px;background:var(--blk-soft);color:var(--blk-ink)}
+.sticky-note{position:sticky;top:calc(env(safe-area-inset-top, 0px) + 8px);z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.12);border:1px solid var(--blk)}
+.sticky-note[data-kind="ok"]{border-color:var(--line)}
+.note[data-kind="ok"]{background:var(--soft);color:var(--muted)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.panel-head h2{font-family:var(--display);font-size:20px;font-weight:700;margin:0}
+
+/* Mark toolbar */
+.modes{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.modes .lbl{font-size:13px;color:var(--muted);margin-right:2px}
+.mode{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px;font-weight:600}
+.mode i{width:14px;height:14px;border-radius:3px;display:inline-block}
+.mode[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.sw-blk{background:repeating-linear-gradient(135deg,var(--blk) 0 2px,var(--blk-soft) 2px 5px)}
+.sw-pre{background:var(--pre);box-shadow:inset 0 0 0 1.5px var(--pre-ink)}
+.sw-co{background:var(--co);box-shadow:inset 0 0 0 1.5px var(--co-ink)}
+.sw-pto{background:var(--pto)}
+.sw-hol{background:var(--hol);box-shadow:inset 0 0 0 1.5px var(--hol-ink)}
+.sw-wk{background:var(--wk)}
+.counts{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.counts button{background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+/* Year chart */
+.months{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:18px 20px}
+.month h3{font-family:var(--display);font-size:14px;font-weight:700;margin:0 0 6px;display:flex;justify-content:space-between;align-items:baseline}
+.month h3 span{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--muted)}
+.grid7{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.grid7 .wd{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;padding-bottom:2px}
+.day{position:relative;aspect-ratio:1;max-width:100%;border:0;border-radius:4px;background:transparent;font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;cursor:pointer;padding:0;display:grid;place-items:center;user-select:none;-webkit-user-select:none}
+.day:hover{box-shadow:inset 0 0 0 1.5px var(--muted)}
+.day.weekend{background:var(--wk);color:var(--wk-ink)}
+.day.holiday{background:var(--hol);color:var(--hol-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--hol-ink)}
+.day.company{background:var(--co);color:var(--co-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--co-ink)}
+.day.prebooked{background:var(--pre);color:var(--pre-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--pre-ink)}
+.day.prebooked.ye{box-shadow:inset 0 0 0 1.5px var(--pre-ink);outline:1.5px dashed var(--pre-ink);outline-offset:-4px}
+.day.blackout{background:repeating-linear-gradient(135deg,var(--blk-soft) 0 3px,transparent 3px 6px),var(--surface);color:var(--blk-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--blk)}
+.day.pto{background:var(--pto);color:var(--pto-ink);font-weight:700}
+.day.inbrk::after{content:"";position:absolute;left:1px;right:1px;bottom:1px;height:3px;border-radius:2px;background:var(--pto-bar)}
+.day.past{opacity:.38}
+.day.today{outline:2px solid var(--ink);outline-offset:-1px}
+.day.empty{visibility:hidden;cursor:default}
+
+/* Breaks */
+.breaks{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.brk{display:grid;grid-template-columns:72px minmax(0,1fr);gap:14px;padding:12px 0;border-top:1px solid var(--line)}
+.brk:first-child{border-top:0;padding-top:0}
+.brk-len{display:grid;align-content:start;justify-items:start}
+.brk-len b{font-family:var(--display);font-size:30px;font-weight:800;line-height:1;box-shadow:inset 0 -8px 0 var(--pto);padding:0 2px;font-variant-numeric:tabular-nums}
+.brk-len span{font-size:11px;color:var(--muted);margin-top:4px}
+.brk-dates{font-weight:700;font-size:15px}
+.brk-meta{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 12px}
+.brk-take{font-family:var(--mono);font-size:12px;margin-top:4px}
+.brk-take em{font-style:normal;background:var(--pto);color:var(--pto-ink);padding:1px 5px;border-radius:3px;margin-right:6px;font-weight:600}
+.tag{font-size:11px;padding:1px 7px;border-radius:999px;background:var(--hol);color:var(--hol-ink);font-weight:600}
+.tag.pre{background:var(--pre);color:var(--pre-ink)}
+.empty-state{color:var(--muted);font-size:14px;margin:0}
+.cover{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
+.cv{border:1px solid var(--line);border-radius:8px;padding:7px 9px;display:grid;gap:1px;font-size:12px;min-width:0}
+.cv b{font-family:var(--display);font-size:14px}
+.cv .when{font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums}
+.cv .st{font-size:11px;color:var(--muted)}
+.cv.pto{background:var(--pto);color:var(--pto-ink);border-color:var(--pto-bar)}
+.cv.pto .st{color:var(--pto-ink)}
+.cv.free{background:var(--soft)}
+.cv.booked{background:var(--pre);color:var(--pre-ink);border-color:var(--pre-ink)}
+.cv.booked .st{color:var(--pre-ink)}
+.cv.blocked,.cv.budget{background:var(--blk-soft);color:var(--blk-ink);border-color:var(--blk)}
+.cv.blocked .st,.cv.budget .st{color:var(--blk-ink)}
+.cv.past{opacity:.45}
+.cover-head{font-size:13px;color:var(--muted);margin:0}
+
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--soft);cursor:pointer;font-size:13px;font-weight:600}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-size:13px;max-width:calc(100% - 32px);z-index:20}
+@media (prefers-reduced-motion:no-preference){.day{transition:background-color .12s}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">PTO Bridge Planner · US federal holidays</div>
+    <h1>Stretch your PTO around holidays, and around the days you <s>can't miss</s>.</h1>
+    <p class="lede">Set your PTO balance and vacation style, then mark blackout days on the calendar. The plan recalculates as you go, bridges holidays and weekends for the most days off, and never touches a blackout.</p>
+  </header>
+
+  <div class="shell">
+    <aside class="rail" aria-label="Settings">
+      <section class="step">
+        <h2><span class="n">01</span>PTO days</h2>
+        <div class="num-row">
+          <span class="num-label">Full allotment</span>
+          <div class="stepper">
+            <button type="button" id="ptoMinus" aria-label="One fewer PTO day">−</button>
+            <input id="ptoDays" type="number" min="0" max="60" inputmode="numeric" aria-label="Full PTO allotment">
+            <button type="button" id="ptoPlus" aria-label="One more PTO day">+</button>
+          </div>
+        </div>
+        <div class="num-row">
+          <span class="num-label">Keep in reserve</span>
+          <div class="stepper">
+            <button type="button" id="resMinus" aria-label="One fewer reserve day">−</button>
+            <input id="resDays" type="number" min="0" max="60" inputmode="numeric" aria-label="Days to keep in reserve">
+            <button type="button" id="resPlus" aria-label="One more reserve day">+</button>
+          </div>
+        </div>
+        <div class="chips" id="resChips"><span class="hint">Quick:</span><button type="button" data-r="0">0</button><button type="button" data-r="5">5</button><button type="button" data-r="10">10</button></div>
+        <p class="hint" id="ptoSummary"></p>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">02</span>Year</h2>
+        <div class="seg" id="years"></div>
+        <label class="check" id="pastWrap"><input type="checkbox" id="skipPast"> <span>Only plan from today forward</span></label>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">03</span>Vacation style</h2>
+        <div class="styles" id="styles"></div>
+        <div class="pref-day">
+          <span class="hint">For 3-day weekends, prefer</span>
+          <div class="seg" id="prefDay">
+            <label><input type="radio" name="prefDay" id="pref-fri" value="fri"><span>Fridays</span></label>
+            <label><input type="radio" name="prefDay" id="pref-mon" value="mon"><span>Mondays</span></label>
+            <label><input type="radio" name="prefDay" id="pref-none" value="none"><span>Either</span></label>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="yearEnd"> <span>Always take the last week of the year off. Books the workdays from Dec 25 to Dec 31 and counts them as pre-booked.</span></label>
+        <label class="check"><input type="checkbox" id="noStretch"> <span>Leave holiday weekends at 3 days. Don't add a day to a Monday or Friday holiday to make a 4-day weekend.</span></label>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">04</span>Regular days off</h2>
+        <div class="dows" id="dows"></div>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">05</span>Months you'll book yourself</h2>
+        <p class="hint">The plan won't add PTO in these months. Mark the days you book there as pre-booked so they come out of your balance.</p>
+        <div class="dows mons" id="mons"></div>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">06</span>Short breaks only</h2>
+        <p class="hint">3- and 4-day weekends are fine in these months, but the plan won't put a break of 5+ days in them. Clear them all to turn this off.</p>
+        <div class="dows mons" id="shortMons"></div>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">07</span>Holidays you get</h2>
+        <p class="hint">Weekend holidays shift to the observed Friday or Monday.</p>
+        <div class="hols" id="hols"></div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <div class="stats" id="stats"></div>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 id="calTitle">Year at a glance</h2>
+          <div class="actions">
+            <button type="button" class="btn" id="saveIcs">Download calendar file (.ics)</button>
+          </div>
+        </div>
+        <div class="modes" role="group" aria-label="What a click marks">
+            <span class="lbl">Click marks:</span>
+            <button type="button" class="mode" data-mode="blackout" aria-pressed="true"><i class="sw-blk"></i>Blackout</button>
+            <button type="button" class="mode" data-mode="prebooked" aria-pressed="false"><i class="sw-pre"></i>Pre-booked PTO</button>
+            <button type="button" class="mode" data-mode="company" aria-pressed="false"><i class="sw-co"></i>Company day off</button>
+        </div>
+        <p class="hint">Click a day to mark it, click again to clear. Shift-click a second day to mark the whole range between them.</p>
+        <div class="counts" id="counts"></div>
+        <div id="blkNote" class="note sticky-note" role="status" aria-live="polite" hidden></div>
+        <div class="months" id="months"></div>
+        <div class="legend">
+          <span><i class="sw-pto"></i>Take PTO</span>
+          <span><i class="sw-blk"></i>Blackout</span>
+          <span><i class="sw-pre"></i>Pre-booked</span>
+          <span><i class="sw-hol"></i>Holiday</span>
+          <span><i class="sw-co"></i>Company day off</span>
+          <span><i class="sw-wk"></i>Regular day off</span>
+          <span><i style="background:var(--pto-bar);height:3px;margin-top:9px"></i>Part of a break</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Your breaks</h2>
+          <div class="actions">
+            <button type="button" class="btn" id="saveText">Download dates (.txt)</button>
+          </div>
+        </div>
+        <div id="coverWrap" hidden>
+          <p class="cover-head">A 3-day weekend in every month. Grey months already have one without PTO.</p>
+          <div class="cover" id="cover"></div>
+        </div>
+        <ul class="breaks" id="breaks"></ul>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+// LOGIC START
+const pad = n => String(n).padStart(2, '0');
+const utc = (y, m, d) => new Date(Date.UTC(y, m, d));
+const keyOf = dt => `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+function nthDow(y, m, dow, n) {
+  if (n > 0) { const first = utc(y, m, 1).getUTCDay(); return utc(y, m, 1 + ((dow - first + 7) % 7) + (n - 1) * 7); }
+  const last = utc(y, m + 1, 0); return utc(y, m, last.getUTCDate() - ((last.getUTCDay() - dow + 7) % 7));
+}
+const HOLIDAYS = [
+  { id: 'newyear', name: "New Year's Day", fixed: [0, 1] },
+  { id: 'mlk', name: 'Martin Luther King Jr. Day', nth: [0, 1, 3] },
+  { id: 'presidents', name: "Presidents' Day", nth: [1, 1, 3] },
+  { id: 'memorial', name: 'Memorial Day', nth: [4, 1, -1] },
+  { id: 'juneteenth', name: 'Juneteenth', fixed: [5, 19] },
+  { id: 'independence', name: 'Independence Day', fixed: [6, 4] },
+  { id: 'labor', name: 'Labor Day', nth: [8, 1, 1] },
+  { id: 'columbus', name: 'Columbus Day', nth: [9, 1, 2] },
+  { id: 'veterans', name: 'Veterans Day', fixed: [10, 11] },
+  { id: 'thanksgiving', name: 'Thanksgiving', nth: [10, 4, 4] },
+  { id: 'christmas', name: 'Christmas Day', fixed: [11, 25] },
+  { id: 'dayafter', name: 'Day after Thanksgiving', extra: true, fn: y => { const t = nthDow(y, 10, 4, 4); return utc(y, 10, t.getUTCDate() + 1); } },
+  { id: 'xmaseve', name: 'Christmas Eve', extra: true, fixed: [11, 24], noObs: true },
+  { id: 'nye', name: "New Year's Eve", extra: true, fixed: [11, 31], noObs: true },
+];
+function holidayOn(h, y) {
+  const dt = h.fn ? h.fn(y) : h.fixed ? utc(y, h.fixed[0], h.fixed[1]) : nthDow(y, h.nth[0], h.nth[1], h.nth[2]);
+  const w = dt.getUTCDay();
+  if (h.noObs) return (w === 0 || w === 6) ? null : { date: dt, observed: false };
+  if (w === 6) return { date: utc(y, dt.getUTCMonth(), dt.getUTCDate() - 1), observed: true };
+  if (w === 0) return { date: utc(y, dt.getUTCMonth(), dt.getUTCDate() + 1), observed: true };
+  return { date: dt, observed: false };
+}
+function holidayMap(y, disabled) {
+  const map = new Map();
+  for (const yy of [y - 1, y, y + 1]) for (const h of HOLIDAYS) {
+    if (disabled.has(h.id)) continue;
+    const r = holidayOn(h, yy); if (!r) continue;
+    const k = keyOf(r.date); const label = h.name + (r.observed ? ' (observed)' : '');
+    map.set(k, map.has(k) ? map.get(k) + ' / ' + label : label);
+  }
+  return map;
+}
+// Pre-booked days are not "off" to the optimizer: it never builds a break onto your own bookings.
+const OFF = new Set(['weekend', 'holiday', 'company']);
+// Days from Jan 1 of the year through Jan 14 of the next, so year-end breaks can run into January.
+function buildDays(opt) {
+  const { year: y, weekend, disabled, marks, skipPast, todayKey, ignoreBlackouts } = opt;
+  const { manualMonths } = opt;
+  const hol = holidayMap(y, disabled);
+  const n = Math.round((utc(y + 1, 0, 1) - utc(y, 0, 1)) / 864e5) + 14;
+  const days = [];
+  for (let i = 0; i < n; i++) {
+    const dt = utc(y, 0, 1 + i), k = keyOf(dt), dow = dt.getUTCDay(), inYear = dt.getUTCFullYear() === y;
+    const h = hol.get(k);
+    let status;
+    if (!ignoreBlackouts && inYear && marks.blackout.has(k)) status = 'blackout';
+    else if (h) status = 'holiday';
+    else if (weekend.has(dow)) status = 'weekend';
+    else if (inYear && marks.company.has(k)) status = 'company';
+    else if (inYear && marks.prebooked.has(k)) status = 'prebooked';
+    else if (!inYear) status = 'beyond';
+    else status = 'work';
+    days.push({ i, dt, k, dow, inYear, status, holiday: h || '', past: !!(skipPast && inYear && k < todayKey), manual: inYear && manualMonths.has(dt.getUTCMonth()), noAuto: inYear && ((dt.getUTCMonth() === 0 && dt.getUTCDate() <= 7) || (dt.getUTCMonth() === 11 && dt.getUTCDate() >= 25)) });
+  }
+  return days;
+}
+const isOff = d => !d.past && OFF.has(d.status);
+// Months you book yourself never get optimizer PTO; their days off and pre-booked days still count.
+// Jan 1-7 and Dec 25-31 are never auto-booked either.
+const isBuy = d => !d.past && !d.manual && !d.noAuto && d.status === 'work';
+function candidates(days, maxCost) {
+  const out = [];
+  for (let s = 0; s < days.length; s++) {
+    if (!days[s].inYear) break;
+    if (!(isOff(days[s]) || isBuy(days[s]))) continue;
+    if (s > 0 && isOff(days[s - 1])) continue;
+    let cost = 0;
+    for (let e = s; e < days.length; e++) {
+      const d = days[e];
+      if (isBuy(d)) cost++; else if (!isOff(d)) break;
+      if (cost > maxCost) break;
+      const nx = days[e + 1];
+      if (cost >= 1 && (!nx || !isOff(nx))) out.push({ s, e, cost, len: e - s + 1 });
+    }
+  }
+  return out;
+}
+// Budgeted weighted interval scheduling: most days off, then fewest PTO days.
+// At least one ordinary weekend between any two breaks, so no two long weekends in a row.
+const GAP = 9;
+const separated = (c, x) => c.e + GAP < x.s || x.e + GAP < c.s;
+// +1 if a break's PTO includes your preferred weekday (Friday or Monday), -1 if it uses the other one.
+function prefScore(days, c, dow) {
+  if (dow == null) return 0;
+  const other = dow === 5 ? 1 : 5; let hit = 0, miss = 0;
+  for (let i = c.s; i <= c.e; i++) if (isBuy(days[i])) { if (days[i].dow === dow) hit = 1; if (days[i].dow === other) miss = 1; }
+  return hit - miss;
+}
+function select(cands, budget, ok, keep) {
+  if (budget <= 0) return [];
+  const list = cands.filter(c => c.cost <= budget && keep(c) && ok(c));
+  list.sort((a, b) => a.e - b.e || a.s - b.s);
+  const m = list.length; if (!m) return [];
+  const W = budget + 1, ends = list.map(c => c.e);
+  const p = list.map(c => { let lo = 0, hi = m; while (lo < hi) { const mid = (lo + hi) >> 1; if (ends[mid] + GAP < c.s) lo = mid + 1; else hi = mid; } return lo; });
+  const dp = new Float64Array((m + 1) * W);
+  for (let i = 1; i <= m; i++) {
+    const c = list[i - 1], score = c.len * 1000 - c.cost * 10 + (c.pf || 0), base = p[i - 1] * W;
+    for (let b = 0; b < W; b++) {
+      let v = dp[(i - 1) * W + b];
+      if (b >= c.cost) { const t = dp[base + b - c.cost] + score; if (t > v) v = t; }
+      dp[i * W + b] = v;
+    }
+  }
+  const pick = []; let i = m, b = budget;
+  while (i > 0) {
+    if (dp[i * W + b] === dp[(i - 1) * W + b]) { i--; continue; }
+    const c = list[i - 1]; pick.push(c); b -= c.cost; i = p[i - 1];
+  }
+  return pick;
+}
+const STYLES = {
+  weekends: { label: 'Long weekends', desc: 'A 3-day weekend every month, plus 4-day bridges', range: [3, 4] },
+  balanced: { label: 'Balanced mix', desc: 'One or two real weeks, plus long weekends', range: [7, 10] },
+  week: { label: 'Week-long breaks', desc: 'Focused 7–10 day trips', range: [7, 10] },
+  extended: { label: 'Extended vacations', desc: 'Fewer 10–16 day trips', range: [10, 16] },
+};
+// Runs of 3+ consecutive days off that need no PTO (a Monday holiday, a pre-booked Friday, a 4-day work week).
+function freeRuns(days) {
+  const out = []; let s = null;
+  for (let i = 0; i <= days.length; i++) {
+    const off = i < days.length && isOff(days[i]);
+    if (off && s === null) s = i;
+    if (!off && s !== null) { if (i - s >= 3 && days[s].inYear) out.push({ s, e: i - 1, len: i - s }); s = null; }
+  }
+  return out;
+}
+// Your own trips: each run of days off that includes a pre-booked day. Breaks keep a normal weekend away from these.
+function bookedRuns(days) {
+  const out = []; let s = null, hasPre = false;
+  for (let i = 0; i <= days.length; i++) {
+    const d = days[i], on = i < days.length && !d.past && (isOff(d) || d.status === 'prebooked');
+    if (on && s === null) { s = i; hasPre = false; }
+    if (on && d.status === 'prebooked') hasPre = true;
+    if (!on && s !== null) { if (hasPre && days[s].inYear) out.push({ s, e: i - 1, len: i - s }); s = null; }
+  }
+  return out;
+}
+// Long-weekends style: every month gets at least one 3+ day weekend. Months that already have one for free cost nothing.
+function coverMonths(days, cands, chosen, left, ok, booked, base = []) {
+  const months = Array.from({ length: 12 }, (_, m) => ({ m, state: 'missing', run: null }));
+  // A long weekend counts for every month it touches, so Sat Oct 31 – Mon Nov 2 covers October and November.
+  const monthsOf = r => { const set = new Set(); for (let i = r.s; i <= r.e; i++) if (days[i].inYear) set.add(days[i].dt.getUTCMonth()); return set; };
+  const credit = (r, state) => { for (const m of monthsOf(r)) if (!months[m].run) { months[m].run = r; months[m].state = state; } };
+  for (const r of booked) if (r.len >= 3) credit(r, 'booked');
+  for (const r of chosen) credit(r, 'pto');
+  for (const r of freeRuns(days)) credit(r, 'free');
+  const mid = c => Math.abs(days[c.s].dt.getUTCDate() + c.len / 2 - 15);
+  for (const mo of months) {
+    if (mo.run) continue;
+    const inMonth = days.filter(d => d.inYear && d.dt.getUTCMonth() === mo.m);
+    if (inMonth.every(d => d.past)) { mo.state = 'past'; continue; }
+    if (inMonth.some(d => d.manual)) { mo.state = 'manual'; continue; }
+    const opts = cands.filter(c => monthsOf(c).has(mo.m) && c.len >= 3 && c.cost <= 2 && ok(c));
+    if (!opts.length) { mo.state = 'blocked'; continue; }
+    const fit = opts.filter(c => c.cost <= left);
+    if (!fit.length) { mo.state = 'budget'; continue; }
+    // Cheapest first; among equals, the weekend that best keeps long weekends under 4 weeks apart.
+    const over = c => overrun(days, [...base, ...chosen, c]);
+    const ov = new Map(fit.map(c => [c, over(c)]));
+    fit.sort((a, b) => a.cost - b.cost || ov.get(a) - ov.get(b) || b.len - a.len || (b.pf || 0) - (a.pf || 0) || mid(a) - mid(b));
+    const c = fit[0]; chosen.push(c); left -= c.cost; credit(c, 'pto');
+  }
+  return { months, left };
+}
+// Never more than 4 ordinary weekends in a row: the next long weekend starts within 35 days of the last one ending.
+const MAXGAP = 35;
+const quarterOf = (days, c) => { let i = Math.floor((c.s + c.e) / 2); while (i > 0 && !days[i].inYear) i--; return Math.floor(days[i].dt.getUTCMonth() / 3); };
+function rhythmGaps(days, runs) {
+  const open = days.filter(d => d.inYear && !d.past);
+  if (!open.length) return [];
+  const lo = open[0].i, hi = open[open.length - 1].i, merged = [];
+  for (const r of runs.filter(r => r.e >= lo && r.s <= hi).map(r => ({ s: r.s, e: r.e })).sort((a, b) => a.s - b.s)) {
+    const last = merged[merged.length - 1];
+    if (last && r.s <= last.e + 1) last.e = Math.max(last.e, r.e); else merged.push(r);
+  }
+  const pts = [{ e: lo - 1 }, ...merged, { s: hi + 1 }], gaps = [];
+  for (let k = 1; k < pts.length; k++) if (pts[k].s - pts[k - 1].e > MAXGAP) gaps.push({ a: pts[k - 1].e + 1, b: pts[k].s - 1, over: pts[k].s - pts[k - 1].e - MAXGAP });
+  return gaps;
+}
+const overrun = (days, runs) => rhythmGaps(days, runs).reduce((a, g) => a + g.over, 0);
+// Plug each too-long stretch with the latest 3-4 day weekend that keeps it under 4 weeks.
+function fillRhythm(days, cands, chosen, base, left, ok) {
+  const missing = [];
+  for (let guard = 0; guard < 80; guard++) {
+    const g = rhythmGaps(days, [...base, ...chosen]).find(g => !missing.some(m => m.a === g.a));
+    if (!g) break;
+    const prevE = g.a - 1;
+    const opts = cands.filter(c => c.len >= 3 && c.len <= 4 && c.cost <= Math.min(2, left) && c.s > prevE && c.s - prevE <= MAXGAP && c.s <= g.b && ok(c));
+    if (!opts.length) { missing.push(g); continue; }
+    // Prefer a weekend that closes the whole stretch, the best value first (a holiday bridge beats a plain Friday).
+    const nextS = g.b + 1, closes = opts.filter(c => nextS - c.e <= MAXGAP);
+    const mid = (g.a + g.b) / 2;
+    if (closes.length) closes.sort((x, y) => x.cost - y.cost || y.len - x.len || (y.pf || 0) - (x.pf || 0) || Math.abs((x.s + x.e) / 2 - mid) - Math.abs((y.s + y.e) / 2 - mid));
+    else {
+      // Latest weekend first; a Friday and a Monday off share the same Saturday, so the preference decides between them.
+      const sat = c => { for (let i = c.s; i <= c.e; i++) if (days[i].status === 'weekend') return i; return c.s; };
+      opts.sort((x, y) => sat(y) - sat(x) || x.cost - y.cost || (y.pf || 0) - (x.pf || 0) || y.len - x.len);
+    }
+    const c = closes.length ? closes[0] : opts[0];
+    chosen.push(c); left -= c.cost;
+  }
+  return { left, missing };
+}
+// Longer breaks (5+ days): at most one per quarter, chosen together for the most days off.
+function pickQuarterly(days, cands, budget, ok, range, taken) {
+  if (budget <= 0) return [];
+  const groups = [[], [], [], []];
+  for (const c of cands) if (c.len >= range[0] && c.len <= range[1] && c.cost <= budget && ok(c)) { const q = quarterOf(days, c); if (!taken.has(q)) groups[q].push(c); }
+  const W = budget + 1, dp = [new Float64Array(W)], choice = [];
+  for (let q = 0; q < 4; q++) {
+    const prev = dp[q], nd = Float64Array.from(prev), ch = new Array(W).fill(null);
+    for (const c of groups[q]) { const sc = c.len * 1000 - c.cost * 10 + (c.pf || 0); for (let b = c.cost; b < W; b++) { const v = prev[b - c.cost] + sc; if (v > nd[b]) { nd[b] = v; ch[b] = c; } } }
+    dp.push(nd); choice.push(ch);
+  }
+  let picks = [], b = budget;
+  for (let q = 3; q >= 0; q--) { const c = choice[q][b]; if (c) { picks.push(c); b -= c.cost; } }
+  picks.sort((x, y) => (y.len * 100 - y.cost) - (x.len * 100 - x.cost));
+  return picks.filter((c, i) => picks.slice(0, i).every(x => separated(c, x)));
+}
+// A break made only of workdays and weekends can sit on any matching weekend without changing the total.
+// Each one moves to the open slot farthest from every other break, without breaking the quarter or 4-week rules.
+function respread(days, cands, chosen, fixed, free, booked, base) {
+  const plain = c => { for (let i = c.s; i <= c.e; i++) { const st = days[i].status; if (st !== 'work' && st !== 'weekend') return false; } return true; };
+  const cur = chosen.slice(), movable = new Set(cur.filter(c => !fixed.has(c) && plain(c)));
+  if (!movable.size) return cur;
+  const buy = days.filter(isBuy); if (!buy.length) return cur;
+  const lo = buy[0].i - 7, hi = buy[buy.length - 1].i + 7, mid = x => (x.s + x.e) / 2;
+  for (let sweep = 0; sweep < 6; sweep++) {
+    let moved = false;
+    for (let j = 0; j < cur.length; j++) {
+      const m = cur[j]; if (!movable.has(m)) continue;
+      const others = cur.filter((_, k) => k !== j);
+      const pts = [...others, ...free, ...booked].map(mid).concat([lo, hi]);
+      const room = c => Math.min(...pts.map(p => Math.abs(mid(c) - p)));
+      const now = overrun(days, [...base, ...cur]), q = m.len >= 5 ? quarterOf(days, m) : -1;
+      const fit = c => room(c) + 3 * (c.pf || 0);
+      let best = m, bd = fit(m);
+      for (const c of cands) {
+        if (c === m || c.len !== m.len || c.cost !== m.cost || !plain(c)) continue;
+        if (q >= 0 && quarterOf(days, c) !== q) continue;
+        if (!others.every(x => separated(c, x))) continue;
+        if (!free.every(r => (c.s <= r.s && r.e <= c.e) || separated(c, r))) continue;
+        if (!booked.every(r => separated(c, r))) continue;
+        const d = fit(c); if (d <= bd + 0.5) continue;
+        if (overrun(days, [...base, ...others, c]) > now) continue;
+        bd = d; best = c;
+      }
+      if (best !== m) { cur[j] = best; movable.add(best); moved = true; }
+    }
+    if (!moved) break;
+  }
+  return cur;
+}
+function plan(days, budget, style, opts = {}) {
+  const free = freeRuns(days);
+  // Optional: leave holiday 3-day weekends alone instead of spending PTO to make them 4-day weekends.
+  // Every break is 3+ days and touches a regular weekend, so PTO never lands on a lone midweek day.
+  const hasWeekend = c => { for (let i = c.s; i <= c.e; i++) if (days[i].status === 'weekend') return true; return false; };
+  // Months marked short-breaks-only never get a break of 5+ days, even one that only crosses into them.
+  const touchesShortOnly = c => { for (let i = c.s; i <= c.e; i++) if (days[i].inYear && opts.shortOnly.has(days[i].dt.getUTCMonth())) return true; return false; };
+  // No 5-6 day breaks: with the stranded-workday rule they always split two work weeks (Thu–Mon, Thu–Tue).
+  // Breaks are a long weekend (3-4 days) or a full week (7+).
+  // No stranded workdays: a break can't leave 1-2 bookable workdays between it and a weekend or holiday
+  // (a weekend, one day back, then the rest of the week off). Days you can't take (blackouts etc.) are exempt.
+  const stranded = (i, step) => {
+    let n = 0, allBuy = true;
+    for (let j = i; j >= 0 && j < days.length; j += step) {
+      const d = days[j];
+      if (isOff(d) || d.status === 'prebooked') break;
+      n++; if (!isBuy(d)) allBuy = false;
+      if (n > 2) return false;
+    }
+    return n >= 1 && allBuy;
+  };
+  const awkward = c => stranded(c.s - 1, -1) || stranded(c.e + 1, 1);
+  const cands = candidates(days, Math.max(1, Math.min(budget, 16))).filter(c => c.len >= 3 && hasWeekend(c) && !awkward(c) && !(c.len >= 5 && c.len <= 6) && !(c.len >= 5 && touchesShortOnly(c)) && !(opts.noStretch && c.len <= 4 && free.some(r => c.s <= r.s && r.e <= c.e)));
+  for (const c of cands) c.pf = prefScore(days, c, opts.prefDow);
+  const booked = bookedRuns(days), base = [...free, ...booked.filter(r => r.len >= 3)];
+  const chosen = []; let left = Math.max(0, budget), months = null, fixed = new Set();
+  const okFor = list => c => list.every(x => separated(c, x)) && booked.every(r => separated(c, r)) && free.every(r => (c.s <= r.s && r.e <= c.e) || separated(c, r));
+  const ok = okFor(chosen);
+  const add = pk => { for (const c of pk) { chosen.push(c); left -= c.cost; } };
+  const run = (bud, keep) => add(select(cands, Math.min(bud, left), ok, keep));
+  const taken = () => new Set([...chosen, ...booked].filter(c => c.len >= 5).map(c => quarterOf(days, c)));
+  // Set aside the PTO the 4-week rhythm needs before the style spends the rest.
+  const dry = [], dryRun = fillRhythm(days, cands, dry, base, left, okFor(dry));
+  const reserve = Math.max(0, Math.min(left, left - dryRun.left));
+  const styleBudget = left - reserve;
+  if (style === 'weekends') {
+    const r = coverMonths(days, cands, chosen, styleBudget, ok, booked, base);
+    months = r.months; left -= styleBudget - r.left; fixed = new Set(chosen);
+    run(r.left, c => c.len <= 4);
+  } else {
+    // Longer breaks can carry the 4-week rhythm themselves, so give them as much PTO as the rhythm still allows.
+    const range = STYLES[style].range;
+    const cap = style === 'balanced' ? Math.min(left, Math.ceil(left / 2)) : left;
+    // Balanced mix also promises a 3-day weekend in every month.
+    const monthly = style === 'balanced';
+    const shortfall = (list, bud) => {
+      const arr = list.slice(), okA = okFor(arr); let l = bud, short = 0;
+      if (monthly) { const r = coverMonths(days, cands, arr, l, okA, booked, base); l = r.left; short = r.months.filter(m => m.state === 'budget' || m.state === 'blocked').length; }
+      return short + fillRhythm(days, cands, arr, base, l, okA).missing.length;
+    };
+    const floor = shortfall([], left);
+    for (let bud = cap; bud >= 0; bud--) {
+      const picks = pickQuarterly(days, cands, bud, ok, range, taken());
+      const spent = picks.reduce((a, c) => a + c.cost, 0);
+      if (bud === 0 || shortfall([...chosen, ...picks], left - spent) <= floor) { add(picks); break; }
+    }
+    if (monthly) {
+      const before = new Set(chosen), r = coverMonths(days, cands, chosen, left, ok, booked, base);
+      months = r.months; left = r.left; fixed = new Set(chosen.filter(c => !before.has(c)));
+    }
+    const arr = chosen.slice(), still = fillRhythm(days, cands, arr, base, left, okFor(arr));
+    run(still.left, c => c.len <= 4);
+  }
+  left = fillRhythm(days, cands, chosen, base, left, ok).left;
+  if (left > 0) run(left, c => c.len <= 4);
+  if (left > 0) add(pickQuarterly(days, cands, left, ok, [7, 16], taken()));
+  const breaks = respread(days, cands, chosen, fixed, free, booked, base).sort((a, b) => a.s - b.s);
+  return { breaks, left, months, missing: rhythmGaps(days, [...base, ...breaks]), totalOff: breaks.reduce((a, c) => a + c.len, 0), used: Math.max(0, budget) - left };
+}
+// Year-end week: workdays Dec 25-31, plus any 1-2 workdays stranded between the weekend and Christmas.
+function yearEndKeys(days, year) {
+  const inWeek = d => d.inYear && d.dt.getUTCMonth() === 11 && d.dt.getUTCDate() >= 25;
+  const keys = days.filter(d => inWeek(d) && d.status === 'work').map(d => d.k);
+  const first = days.find(inWeek);
+  if (first) {
+    const lead = [];
+    for (let j = first.i - 1; j >= 0; j--) { const d = days[j]; if (d.status !== 'work' && d.status !== 'blackout') break; lead.push(d); }
+    if (lead.length >= 1 && lead.length <= 2 && lead.every(d => d.status === 'work')) keys.push(...lead.map(d => d.k));
+  }
+  return keys;
+}
+// LOGIC END
+
+const fmt = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+const fmtY = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const now = new Date();
+const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+const thisYear = now.getFullYear();
+const YEARS = [thisYear, thisYear + 1, thisYear + 2];
+const STORE = 'ptoBridgePlanner.v1';
+
+let state = { pto: 15, reserve: 0, year: thisYear + 1, style: 'balanced', weekend: [0, 6], disabled: ['dayafter', 'xmaseve', 'nye'], manualMonths: [0, 11], noStretch: false, yearEnd: false, prefDay: 'none', shortOnlyMonths: [5, 6, 7], skipPast: true, marks: {}, mode: 'blackout' };
+try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (s && typeof s === 'object') state = Object.assign(state, s); } catch (e) {}
+if (!YEARS.includes(state.year)) state.year = thisYear + 1;
+// A saved style that no longer exists (Mini breaks was removed) falls back to Balanced mix.
+if (!STYLES[state.style]) state.style = 'balanced';
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
+function marksFor(y) {
+  const m = state.marks[y] || (state.marks[y] = { blackout: [], prebooked: [], company: [] });
+  return { blackout: new Set(m.blackout), prebooked: new Set(m.prebooked), company: new Set(m.company) };
+}
+function setMarks(y, sets) { state.marks[y] = { blackout: [...sets.blackout].sort(), prebooked: [...sets.prebooked].sort(), company: [...sets.company].sort() }; }
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let toastT;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
+
+// Settings UI
+$('years').innerHTML = YEARS.map(y => `<label><input type="radio" name="year" id="year-${y}" value="${y}"><span>${y}</span></label>`).join('');
+$('styles').innerHTML = Object.entries(STYLES).map(([id, s]) => `<label><input type="radio" name="style" id="style-${id}" value="${id}"><b>${s.label}${id === 'balanced' ? ' · default' : ''}</b><small>${s.desc}</small></label>`).join('');
+$('dows').innerHTML = DOWS.map((d, i) => `<label title="${d}"><input type="checkbox" id="dow-${i}" value="${i}"><span>${d.slice(0, 2)}</span></label>`).join('');
+
+$('shortMons').innerHTML = MONTHS.map((m, i) => `<label title="${m}"><input type="checkbox" id="short-${i}" value="${i}"><span>${m.slice(0, 3)}</span></label>`).join('');
+$('mons').innerHTML = MONTHS.map((m, i) => `<label title="${m}"><input type="checkbox" id="mon-${i}" value="${i}"><span>${m.slice(0, 3)}</span></label>`).join('');
+
+function renderHolidayList() {
+  const dis = new Set(state.disabled);
+  $('hols').innerHTML = HOLIDAYS.map(h => {
+    let r = holidayOn(h, state.year);
+    if (h.id === 'newyear' && r && r.date.getUTCFullYear() !== state.year) r = holidayOn(h, state.year + 1);
+    const when = r ? (r.date.getUTCFullYear() === state.year ? fmt.format(r.date) : fmtY.format(r.date)) + (r.observed ? '*' : '') : 'weekend';
+    return `<label class="${h.extra && h.id === 'dayafter' ? 'extra' : ''}"><input type="checkbox" id="hol-${h.id}" data-h="${h.id}" ${dis.has(h.id) ? '' : 'checked'}><span>${h.name}</span><span class="d">${when}</span></label>`;
+  }).join('') + `<p class="hint" style="margin-top:6px">* observed date. Common extra company holidays are below the line.</p>`;
+}
+
+function syncInputs() {
+  $('ptoDays').value = state.pto;
+  $('resDays').value = state.reserve;
+  document.querySelectorAll('#resChips button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.r) === state.reserve)));
+  $(`year-${state.year}`).checked = true;
+  $(`style-${state.style}`).checked = true;
+  DOWS.forEach((_, i) => $(`dow-${i}`).checked = state.weekend.includes(i));
+  MONTHS.forEach((_, i) => $(`mon-${i}`).checked = state.manualMonths.includes(i));
+  MONTHS.forEach((_, i) => $(`short-${i}`).checked = state.shortOnlyMonths.includes(i));
+  $('skipPast').checked = !!state.skipPast;
+  $('noStretch').checked = !!state.noStretch;
+  $('yearEnd').checked = !!state.yearEnd;
+  $(`pref-${state.prefDay}`).checked = true;
+  $('pastWrap').hidden = state.year !== thisYear;
+  document.querySelectorAll('.mode').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)));
+}
+
+let current = null;
+function compute() {
+  const marks = marksFor(state.year);
+  const base = { year: state.year, weekend: new Set(state.weekend), disabled: new Set(state.disabled), manualMonths: new Set(state.manualMonths), marks, skipPast: state.year === thisYear && state.skipPast, todayKey };
+  let days = buildDays(base), yearEnd = new Set();
+  if (state.yearEnd) {
+    yearEnd = new Set(yearEndKeys(days, state.year).filter(k => !marks.prebooked.has(k) && !(state.year === thisYear && state.skipPast && k < todayKey)));
+    if (yearEnd.size) { for (const k of yearEnd) marks.prebooked.add(k); days = buildDays(base); }
+  }
+  for (const d of days) if (yearEnd.has(d.k)) d.yearEnd = true;
+  const preCount = days.filter(d => d.inYear && d.status === 'prebooked').length;
+  const reserve = Math.min(state.reserve || 0, state.pto);
+  const budget = state.pto - reserve - preCount;
+  const opts = { noStretch: state.noStretch, prefDow: state.prefDay === 'fri' ? 5 : state.prefDay === 'mon' ? 1 : null, shortOnly: new Set(state.shortOnlyMonths) };
+  const p = plan(days, Math.max(0, budget), state.style, opts);
+  let cost = 0;
+  if (marks.blackout.size) {
+    const free = plan(buildDays({ ...base, ignoreBlackouts: true }), Math.max(0, budget), state.style, opts);
+    cost = free.totalOff - p.totalOff;
+  }
+  for (const b of p.breaks) for (let i = b.s; i <= b.e; i++) { days[i].inbrk = true; if (isBuy(days[i])) days[i].pto = true; }
+  return { days, plan: p, budget, reserve, preCount, blackoutCost: cost, marks };
+}
+
+function runs(idx, days) { // compress consecutive PTO indices into ranges
+  const out = []; let a = null, b = null;
+  for (const i of idx) { if (a !== null && i === b + 1) b = i; else { if (a !== null) out.push([a, b]); a = b = i; } }
+  if (a !== null) out.push([a, b]);
+  return out.map(([x, y]) => x === y ? fmt.format(days[x].dt) : `${fmt.format(days[x].dt)} – ${fmt.format(days[y].dt)}`);
+}
+
+function describe(b, days) {
+  const pto = [], hols = []; let pre = 0;
+  for (let i = b.s; i <= b.e; i++) { const d = days[i]; if (d.pto) pto.push(i); if (d.status === 'holiday') hols.push(d.holiday); if (d.status === 'prebooked') pre++; }
+  const s = days[b.s].dt, e = days[b.e].dt;
+  const range = s.getUTCFullYear() === e.getUTCFullYear() ? `${fmt.format(s)} – ${fmt.format(e)}` : `${fmtY.format(s)} – ${fmtY.format(e)}`;
+  return { range, pto, take: runs(pto, days), hols: [...new Set(hols)], pre, s, e };
+}
+
+function render() {
+  syncInputs();
+  current = compute();
+  const { days, plan: p, budget, reserve, preCount, blackoutCost, marks } = current;
+  const kept = Math.max(0, state.pto - preCount - p.used);
+  $('ptoSummary').textContent = `The plan can use ${Math.max(0, budget)} day${Math.max(0, budget) === 1 ? '' : 's'}${preCount ? ` after your ${preCount} pre-booked` : ''}, keeping ${reserve} in reserve.`;
+  const mult = p.used ? (p.totalOff / p.used) : 0;
+  const blkDays = marks.blackout.size;
+  // Work weeks: Sunday-to-Saturday weeks starting in this year. A day counts as worked unless it's off or planned PTO.
+  const normal = 7 - state.weekend.length, wk = { full: 0, four: 0, three: 0, light: 0, total: 0 };
+  for (let i = days.findIndex(d => d.dow === 0); i >= 0 && i + 6 < days.length && days[i].inYear; i += 7) {
+    let worked = 0;
+    for (let j = i; j < i + 7; j++) { const d = days[j]; if (!d.pto && ['work', 'blackout', 'beyond'].includes(d.status)) worked++; }
+    wk.total++;
+    if (worked >= normal) wk.full++; else if (worked === 4) wk.four++; else if (worked === 3) wk.three++; else wk.light++;
+  }
+  $('stats').innerHTML = `
+    <div class="stat hi"><span class="k">Days off in breaks</span><span class="v">${p.totalOff}</span></div>
+    <div class="stat"><span class="k">PTO used</span><span class="v">${p.used + preCount}<small> of ${state.pto}${preCount ? ` (${preCount} pre-booked)` : ''}</small></span></div>
+    <div class="stat${kept < reserve ? ' blk' : ''}"><span class="k">Kept in reserve</span><span class="v">${kept}<small> goal ${reserve}${p.left > 0 && budget >= 0 ? ` · ${p.left} unplaced` : ''}</small></span></div>
+    <div class="stat"><span class="k">Days off per PTO day</span><span class="v">${mult ? mult.toFixed(1) + '×' : '–'}</span></div>
+    <div class="stat"><span class="k">Breaks</span><span class="v">${p.breaks.length}</span></div>
+    <div class="stat blk"><span class="k">Blackout days</span><span class="v">${blkDays}</span></div>
+    <div class="stat"><span class="k">Full work weeks</span><span class="v">${wk.full}<small> of ${wk.total}</small></span></div>
+    <div class="stat"><span class="k">4-day weeks</span><span class="v">${normal > 4 ? wk.four : '–'}</span></div>
+    <div class="stat"><span class="k">3-day weeks</span><span class="v">${normal > 3 ? wk.three : '–'}${wk.light ? `<small> +${wk.light} lighter</small>` : ''}</span></div>`;
+
+  const note = $('blkNote'); let msg = '', kind = 'warn';
+  const monthList = st => p.months ? p.months.filter(m => m.state === st).map(m => MONTHS[m.m]) : [];
+  const shortM = monthList('budget'), blockedM = monthList('blocked');
+  if (preCount > state.pto) msg = `You've pre-booked ${preCount} days but only have ${state.pto} PTO days. Remove some pre-booked days or raise your allotment.`;
+  else if (budget < 0) msg = `Your ${preCount} pre-booked days dip ${-budget} day${budget === -1 ? '' : 's'} into your ${reserve}-day reserve, so the plan adds nothing else.`;
+  else if (shortM.length || blockedM.length) msg = [
+    shortM.length ? `Not enough PTO for a 3-day weekend in ${shortM.join(', ')}. Add ${shortM.length} day${shortM.length > 1 ? 's' : ''} to cover every month.` : '',
+    blockedM.length ? `Blackouts or neighboring long weekends leave no open 3-day weekend in ${blockedM.join(', ')}.` : ''].filter(Boolean).join(' ');
+  else if (blkDays && blackoutCost > 0) msg = `Your blackouts cost ${blackoutCost} day${blackoutCost > 1 ? 's' : ''} off compared with a calendar without them. The plan below works around every one.`;
+  else if (blkDays) { msg = `Your ${blkDays} blackout day${blkDays > 1 ? 's' : ''} cost you nothing. The plan routes around them with the same total time off.`; kind = 'ok'; }
+  if (p.missing && p.missing.length) {
+    const spans = p.missing.map(g => `${fmt.format(days[g.a].dt)} – ${fmt.format(days[Math.min(g.b, days.length - 1)].dt)}`).join('; ');
+    msg = [kind === 'warn' ? msg : '', `More than 4 weeks without a long weekend: ${spans}. There's no open Friday or Monday the plan can take there (months you book yourself, the first and last weeks of the year, blackouts, or not enough PTO), so plan that stretch yourself.`].filter(Boolean).join(' ');
+    kind = 'warn';
+  }
+  if (budget >= 0 && p.left > 0) {
+    msg = [kind === 'warn' ? msg : '', `${p.left} PTO day${p.left > 1 ? 's' : ''} can't be placed with the current rules. Place ${p.left > 1 ? 'them' : 'it'} yourself by marking pre-booked days on the calendar, or keep ${p.left > 1 ? 'them' : 'it'} with your reserve. The reserve count above already includes ${p.left > 1 ? 'them' : 'it'}.`].filter(Boolean).join(' ');
+    kind = 'warn';
+  }
+  note.hidden = !msg; note.textContent = msg; note.dataset.kind = kind;
+
+  $('coverWrap').hidden = !p.months;
+  if (p.months) {
+    const label = { free: 'No PTO needed', pto: 'PTO', past: 'Past', blocked: 'No open weekend', budget: 'Needs 1 more PTO day', manual: 'You book this month' };
+    $('cover').innerHTML = p.months.map(mo => {
+      const r = mo.run;
+      const when = r ? `${fmt.format(days[r.s].dt).replace(/^\w+, /, '')}–${days[r.e].dt.getUTCMonth() === days[r.s].dt.getUTCMonth() ? days[r.e].dt.getUTCDate() : fmt.format(days[r.e].dt).replace(/^\w+, /, '')}` : '—';
+      const st = mo.state === 'booked' ? `${r.len} days · your booking` : mo.state === 'pto' ? `${r.cost} PTO · ${r.len} days` : mo.state === 'free' ? `${r.len} days · free` : label[mo.state];
+      return `<div class="cv ${mo.state}"><b>${MONTHS[mo.m].slice(0, 3)}</b><span class="when">${when}</span><span class="st">${st}</span></div>`;
+    }).join('');
+  }
+
+  $('breaks').innerHTML = p.breaks.length ? p.breaks.map(b => {
+    const d = describe(b, days);
+    const ratio = d.pto.length ? (b.len / d.pto.length).toFixed(1) + '× return' : '';
+    return `<li class="brk"><div class="brk-len"><b>${b.len}</b><span>days off</span></div>
+      <div><div class="brk-dates">${d.range}</div>
+      <div class="brk-meta"><span>${d.pto.length} PTO day${d.pto.length === 1 ? '' : 's'}</span>${ratio ? `<span>${ratio}</span>` : ''}${d.hols.map(h => `<span class="tag">${esc(h)}</span>`).join('')}${d.pre ? `<span class="tag pre">${d.pre} pre-booked</span>` : ''}</div>
+      <div class="brk-take"><em>Take</em>${d.take.join(', ')}</div></div></li>`;
+  }).join('') : `<li><p class="empty-state">${state.pto ? 'No breaks fit. Try fewer blackouts or a different style.' : 'Add some PTO days to see a plan.'}</p></li>`;
+
+  $('calTitle').textContent = `${state.year} at a glance`;
+  $('counts').innerHTML = [['blackout', 'blackout'], ['prebooked', 'pre-booked'], ['company', 'company']]
+    .map(([m, l]) => `<span>${marks[m].size} ${l}${marks[m].size ? ` · <button type="button" data-clear="${m}">clear</button>` : ''}</span>`).join('');
+
+  let html = '';
+  for (let m = 0; m < 12; m++) {
+    const first = utc(state.year, m, 1), dim = utc(state.year, m + 1, 0).getUTCDate();
+    const startIdx = Math.round((first - utc(state.year, 0, 1)) / 864e5);
+    let ptoN = 0;
+    let cells = DOWS.map(d => `<span class="wd" aria-hidden="true">${d[0]}</span>`).join('');
+    for (let i = 0; i < first.getUTCDay(); i++) cells += `<span class="day empty"></span>`;
+    for (let d = 0; d < dim; d++) {
+      const day = days[startIdx + d]; if (day.pto) ptoN++;
+      const cls = ['day', day.pto ? 'pto' : day.status, day.inbrk && !day.pto ? 'inbrk' : '', day.past ? 'past' : '', day.yearEnd ? 'ye' : '', day.k === todayKey ? 'today' : ''].join(' ');
+      const tip = [fmtY.format(day.dt), day.pto ? 'Take PTO' : '', day.holiday, day.status === 'blackout' ? 'Blackout' : '', day.status === 'prebooked' ? (day.yearEnd ? 'Year-end week (automatic)' : 'Pre-booked PTO') : '', day.status === 'company' ? 'Company day off' : ''].filter(Boolean).join(' · ');
+      cells += `<button type="button" class="${cls}" data-k="${day.k}" title="${esc(tip)}" aria-label="${esc(tip)}">${d + 1}</button>`;
+    }
+    const mine = state.manualMonths.includes(m);
+    html += `<div class="month"><h3>${MONTHS[m]}${mine ? `<span class="mine">you book</span>` : ptoN ? `<span>${ptoN} PTO</span>` : ''}</h3><div class="grid7">${cells}</div></div>`;
+  }
+  $('months').innerHTML = html;
+  save();
+}
+
+// Calendar clicks
+let lastKey = null;
+function baseStatus(k) {
+  const d = current.days.find(x => x.k === k);
+  if (!d) return null;
+  if (d.holiday) return 'holiday';
+  if (state.weekend.includes(d.dow)) return 'weekend';
+  return 'work';
+}
+function canMark(mode, k) { return mode === 'blackout' || baseStatus(k) === 'work'; }
+$('months').addEventListener('click', e => {
+  const btn = e.target.closest('button.day'); if (!btn || btn.classList.contains('empty')) return;
+  const k = btn.dataset.k, mode = state.mode, sets = marksFor(state.year);
+  if (mode !== 'blackout' && !e.shiftKey && btn.classList.contains('ye')) { toast('This day is booked by the year-end setting. Turn it off in Vacation style to change it.'); return; }
+  if (e.shiftKey && lastKey && lastKey !== k) {
+    const [a, b] = [lastKey, k].sort(); let n = 0;
+    for (const d of current.days) if (d.inYear && d.k >= a && d.k <= b && canMark(mode, d.k)) {
+      for (const m of ['blackout', 'prebooked', 'company']) sets[m].delete(d.k);
+      sets[mode].add(d.k); n++;
+    }
+    toast(`Marked ${n} day${n === 1 ? '' : 's'} as ${mode === 'prebooked' ? 'pre-booked' : mode === 'company' ? 'company days off' : 'blackout'}`);
+  } else if (sets[mode].has(k)) {
+    sets[mode].delete(k);
+  } else {
+    if (!canMark(mode, k)) { toast(mode === 'prebooked' ? "That's already a day off, so it doesn't need PTO." : "That's already a day off."); return; }
+    for (const m of ['blackout', 'prebooked', 'company']) sets[m].delete(k);
+    sets[mode].add(k);
+  }
+  lastKey = k; setMarks(state.year, sets); render();
+  const again = document.querySelector(`button.day[data-k="${k}"]`); if (again) again.focus({ preventScroll: true });
+});
+$('counts').addEventListener('click', e => {
+  const m = e.target.dataset.clear; if (!m) return;
+  const sets = marksFor(state.year); sets[m].clear(); setMarks(state.year, sets); render();
+});
+document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => { state.mode = b.dataset.mode; lastKey = null; render(); }));
+
+// Settings events
+const clampPto = v => Math.max(0, Math.min(60, Math.round(Number(v) || 0)));
+const setReserve = v => { state.reserve = Math.min(clampPto(v), state.pto); render(); };
+$('resMinus').onclick = () => setReserve(state.reserve - 1);
+$('resPlus').onclick = () => setReserve(state.reserve + 1);
+$('resDays').addEventListener('change', e => setReserve(e.target.value));
+$('resChips').addEventListener('click', e => { if (e.target.dataset.r != null) setReserve(e.target.dataset.r); });
+$('ptoMinus').onclick = () => { state.pto = clampPto(state.pto - 1); state.reserve = Math.min(state.reserve, state.pto); render(); };
+$('ptoPlus').onclick = () => { state.pto = clampPto(state.pto + 1); render(); };
+$('ptoDays').addEventListener('change', e => { state.pto = clampPto(e.target.value); state.reserve = Math.min(state.reserve, state.pto); render(); });
+$('years').addEventListener('change', e => { state.year = Number(e.target.value); lastKey = null; renderHolidayList(); render(); });
+$('styles').addEventListener('change', e => { state.style = e.target.value; render(); });
+$('dows').addEventListener('change', () => { state.weekend = DOWS.map((_, i) => i).filter(i => $(`dow-${i}`).checked); render(); });
+$('hols').addEventListener('change', e => { const id = e.target.dataset.h; if (!id) return; const s = new Set(state.disabled); e.target.checked ? s.delete(id) : s.add(id); state.disabled = [...s]; render(); });
+$('shortMons').addEventListener('change', () => { state.shortOnlyMonths = MONTHS.map((_, i) => i).filter(i => $(`short-${i}`).checked); render(); });
+$('mons').addEventListener('change', () => { state.manualMonths = MONTHS.map((_, i) => i).filter(i => $(`mon-${i}`).checked); render(); });
+$('prefDay').addEventListener('change', e => { state.prefDay = e.target.value; render(); });
+$('yearEnd').addEventListener('change', e => { state.yearEnd = e.target.checked; render(); });
+$('noStretch').addEventListener('change', e => { state.noStretch = e.target.checked; render(); });
+$('skipPast').addEventListener('change', e => { state.skipPast = e.target.checked; render(); });
+
+// Export
+function download(text, name, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
+  // Release the file after the browser has started saving it; revoking immediately can cancel the download in Safari and Firefox.
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$('saveText').onclick = () => {
+  const { days, plan: p } = current;
+  const lines = p.breaks.map(b => { const d = describe(b, days); return `${d.range} (${b.len} days off): take ${d.take.join(', ')} (${d.pto.length} PTO)`; });
+  download(`Time off plan for ${state.year}: ${p.used} PTO days for ${p.totalOff} days off\n\n` + lines.join('\n'), `pto-plan-${state.year}.txt`, 'text/plain');
+};
+$('saveIcs').onclick = () => {
+  const { days, plan: p } = current;
+  const ymd = dt => keyOf(dt).replace(/-/g, '');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const ev = p.breaks.map((b, n) => {
+    const d = describe(b, days);
+    return ['BEGIN:VEVENT', `UID:pto-${state.year}-${n}-${ymd(d.s)}@pto-bridge-planner`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(d.s)}`, `DTEND;VALUE=DATE:${ymd(utc(d.e.getUTCFullYear(), d.e.getUTCMonth(), d.e.getUTCDate() + 1))}`, `SUMMARY:Time off (${b.len} days)`, `DESCRIPTION:PTO: ${d.take.join('\\, ')}`, 'TRANSP:OPAQUE', 'END:VEVENT'].join('\r\n');
+  });
+  download(['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PTO Bridge Planner//EN', ...ev, 'END:VCALENDAR'].join('\r\n'), `pto-plan-${state.year}.ics`, 'text/calendar');
+};
+
+renderHolidayList();
+render();
+</script>
+
+</body>
+</html>
