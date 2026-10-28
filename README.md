@@ -1,4 +1,4 @@
-# PTO Bridge Planner
+# PTO Calculator
 
 A PTO optimizer that places your vacation days around US holidays and weekends to get the most time off, while respecting the days you can't miss and how you like your time off spread across the year.
 
