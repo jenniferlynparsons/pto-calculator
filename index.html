@@ -123,11 +123,18 @@ h1 s{text-decoration:none;background:repeating-linear-gradient(135deg,var(--blk-
 /* Mark toolbar */
 .modes{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .modes .lbl{font-size:13px;color:var(--muted);margin-right:2px}
-.mode{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px;font-weight:600}
+.mode{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px;font-weight:600}
 .mode i{width:14px;height:14px;border-radius:3px;display:inline-block}
 .mode[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.mode-group{display:inline-flex}
+.mode-group .mode{border-radius:0;margin-left:-1px}
+.mode-group .mode:first-child{border-radius:999px 0 0 999px;margin-left:0}
+.mode-group .mode:last-child{border-radius:0 999px 999px 0}
+.mode-group .mode[aria-pressed="true"]{position:relative;z-index:1}
 .sw-blk{background:repeating-linear-gradient(135deg,var(--blk) 0 2px,var(--blk-soft) 2px 5px)}
 .sw-pre{background:var(--pre);box-shadow:inset 0 0 0 1.5px var(--pre-ink)}
+.sw-half{background:linear-gradient(to top, var(--pre) 50%, transparent 50%);box-shadow:inset 0 0 0 1.5px var(--pre-ink)}
+.sw-qtr{background:linear-gradient(to top, var(--pre) 25%, transparent 25%);box-shadow:inset 0 0 0 1.5px var(--pre-ink)}
 .sw-co{background:var(--co);box-shadow:inset 0 0 0 1.5px var(--co-ink)}
 .sw-pto{background:var(--pto)}
 .sw-hol{background:var(--hol);box-shadow:inset 0 0 0 1.5px var(--hol-ink)}
@@ -150,6 +157,9 @@ h1 s{text-decoration:none;background:repeating-linear-gradient(135deg,var(--blk-
 .day.holiday{background:var(--hol);color:var(--hol-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--hol-ink)}
 .day.company{background:var(--co);color:var(--co-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--co-ink)}
 .day.prebooked{background:var(--pre);color:var(--pre-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--pre-ink)}
+.day.partial{color:var(--pre-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--pre-ink)}
+.day.partial.p50{background:linear-gradient(to top, var(--pre) 50%, transparent 50%)}
+.day.partial.p25{background:linear-gradient(to top, var(--pre) 25%, transparent 25%)}
 .day.prebooked.ye{box-shadow:inset 0 0 0 1.5px var(--pre-ink);outline:1.5px dashed var(--pre-ink);outline-offset:-4px}
 .day.blackout{background:repeating-linear-gradient(135deg,var(--blk-soft) 0 3px,transparent 3px 6px),var(--surface);color:var(--blk-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--blk)}
 .day.pto{background:var(--pto);color:var(--pto-ink);font-weight:700}
@@ -287,8 +297,12 @@ h1 s{text-decoration:none;background:repeating-linear-gradient(135deg,var(--blk-
         </div>
         <div class="modes" role="group" aria-label="What a click marks">
             <span class="lbl">Click marks:</span>
-            <button type="button" class="mode" data-mode="blackout" aria-pressed="true"><i class="sw-blk"></i>Blackout</button>
-            <button type="button" class="mode" data-mode="prebooked" aria-pressed="false"><i class="sw-pre"></i>Pre-booked PTO</button>
+            <button type="button" class="mode" data-mode="blackout" aria-pressed="false"><i class="sw-blk"></i>Blackout</button>
+            <span class="mode-group" role="group" aria-label="Pre-booked PTO">
+              <button type="button" class="mode" data-mode="prebooked" aria-pressed="true"><i class="sw-pre"></i>Pre-booked PTO</button>
+              <button type="button" class="mode" data-mode="half" aria-pressed="false" aria-label="Pre-booked half day"><i class="sw-half"></i>½ day</button>
+              <button type="button" class="mode" data-mode="quarter" aria-pressed="false" aria-label="Pre-booked quarter day"><i class="sw-qtr"></i>¼ day</button>
+            </span>
             <button type="button" class="mode" data-mode="company" aria-pressed="false"><i class="sw-co"></i>Company day off</button>
         </div>
         <p class="hint">Click a day to mark it, click again to clear. Shift-click a second day to mark the whole range between them.</p>
@@ -299,6 +313,7 @@ h1 s{text-decoration:none;background:repeating-linear-gradient(135deg,var(--blk-
           <span><i class="sw-pto"></i>Take PTO</span>
           <span><i class="sw-blk"></i>Blackout</span>
           <span><i class="sw-pre"></i>Pre-booked</span>
+          <span><i class="sw-half"></i>Half or quarter day</span>
           <span><i class="sw-hol"></i>Holiday</span>
           <span><i class="sw-co"></i>Company day off</span>
           <span><i class="sw-wk"></i>Regular day off</span>
@@ -385,9 +400,11 @@ function buildDays(opt) {
     else if (weekend.has(dow)) status = 'weekend';
     else if (inYear && marks.company.has(k)) status = 'company';
     else if (inYear && marks.prebooked.has(k)) status = 'prebooked';
+    // A half or quarter day is still a workday: the planner won't book it or build a break across it.
+    else if (inYear && marks.partial && marks.partial.has(k)) status = 'partial';
     else if (!inYear) status = 'beyond';
     else status = 'work';
-    days.push({ i, dt, k, dow, inYear, status, holiday: h || '', past: !!(skipPast && inYear && k < todayKey), manual: inYear && manualMonths.has(dt.getUTCMonth()), noAuto: inYear && ((dt.getUTCMonth() === 0 && dt.getUTCDate() <= 7) || (dt.getUTCMonth() === 11 && dt.getUTCDate() >= 25)) });
+    days.push({ i, dt, k, dow, inYear, status, part: status === 'partial' ? marks.partial.get(k) : 0, holiday: h || '', past: !!(skipPast && inYear && k < todayKey), manual: inYear && manualMonths.has(dt.getUTCMonth()), noAuto: inYear && ((dt.getUTCMonth() === 0 && dt.getUTCDate() <= 7) || (dt.getUTCMonth() === 11 && dt.getUTCDate() >= 25)) });
   }
   return days;
 }
@@ -682,19 +699,24 @@ const thisYear = now.getFullYear();
 const YEARS = [thisYear, thisYear + 1, thisYear + 2];
 const STORE = 'ptoBridgePlanner.v1';
 
-let state = { pto: 15, reserve: 0, year: thisYear + 1, style: 'balanced', weekend: [0, 6], disabled: ['dayafter', 'xmaseve', 'nye'], manualMonths: [0, 11], noStretch: false, yearEnd: false, prefDay: 'none', shortOnlyMonths: [5, 6, 7], skipPast: true, marks: {}, mode: 'blackout' };
+let state = { pto: 15, reserve: 0, year: thisYear + 1, style: 'balanced', weekend: [0, 6], disabled: ['dayafter', 'xmaseve', 'nye'], manualMonths: [0, 11], noStretch: false, yearEnd: false, prefDay: 'none', shortOnlyMonths: [5, 6, 7], skipPast: true, marks: {}, mode: 'prebooked' };
 try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (s && typeof s === 'object') state = Object.assign(state, s); } catch (e) {}
 if (!YEARS.includes(state.year)) state.year = thisYear + 1;
 // A saved style that no longer exists (Mini breaks was removed) falls back to Balanced mix.
 if (!STYLES[state.style]) state.style = 'balanced';
+// The calendar always opens in Pre-booked mode, whatever was picked last visit.
+state.mode = 'prebooked';
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
 function marksFor(y) {
-  const m = state.marks[y] || (state.marks[y] = { blackout: [], prebooked: [], company: [] });
-  return { blackout: new Set(m.blackout), prebooked: new Set(m.prebooked), company: new Set(m.company) };
+  const m = state.marks[y] || (state.marks[y] = { blackout: [], prebooked: [], company: [], partial: {} });
+  return { blackout: new Set(m.blackout), prebooked: new Set(m.prebooked), company: new Set(m.company), partial: new Map(Object.entries(m.partial || {})) };
 }
-function setMarks(y, sets) { state.marks[y] = { blackout: [...sets.blackout].sort(), prebooked: [...sets.prebooked].sort(), company: [...sets.company].sort() }; }
+function setMarks(y, sets) { state.marks[y] = { blackout: [...sets.blackout].sort(), prebooked: [...sets.prebooked].sort(), company: [...sets.company].sort(), partial: Object.fromEntries([...sets.partial].sort()) }; }
 
 const $ = id => document.getElementById(id);
+// Day counts can be fractional (half and quarter days): show 12.25, not 12.250000001.
+const num = n => String(Math.round(n * 100) / 100);
+const dayWord = n => Math.abs(n - 1) < 1e-9 ? 'day' : 'days';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let toastT;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
@@ -744,18 +766,22 @@ function compute() {
     if (yearEnd.size) { for (const k of yearEnd) marks.prebooked.add(k); days = buildDays(base); }
   }
   for (const d of days) if (yearEnd.has(d.k)) d.yearEnd = true;
-  const preCount = days.filter(d => d.inYear && d.status === 'prebooked').length;
+  // Pre-booked PTO in days: full days plus half and quarter days.
+  const partCount = days.reduce((a, d) => a + (d.inYear ? d.part : 0), 0);
+  const preCount = days.filter(d => d.inYear && d.status === 'prebooked').length + partCount;
   const reserve = Math.min(state.reserve || 0, state.pto);
   const budget = state.pto - reserve - preCount;
+  // The planner books whole days only; a leftover fraction stays in reserve.
+  const planBudget = Math.max(0, Math.floor(budget + 1e-9));
   const opts = { noStretch: state.noStretch, prefDow: state.prefDay === 'fri' ? 5 : state.prefDay === 'mon' ? 1 : null, shortOnly: new Set(state.shortOnlyMonths) };
-  const p = plan(days, Math.max(0, budget), state.style, opts);
+  const p = plan(days, planBudget, state.style, opts);
   let cost = 0;
   if (marks.blackout.size) {
-    const free = plan(buildDays({ ...base, ignoreBlackouts: true }), Math.max(0, budget), state.style, opts);
+    const free = plan(buildDays({ ...base, ignoreBlackouts: true }), planBudget, state.style, opts);
     cost = free.totalOff - p.totalOff;
   }
   for (const b of p.breaks) for (let i = b.s; i <= b.e; i++) { days[i].inbrk = true; if (isBuy(days[i])) days[i].pto = true; }
-  return { days, plan: p, budget, reserve, preCount, blackoutCost: cost, marks };
+  return { days, plan: p, budget, planBudget, reserve, preCount, partCount, blackoutCost: cost, marks };
 }
 
 function runs(idx, days) { // compress consecutive PTO indices into ranges
@@ -776,23 +802,24 @@ function describe(b, days) {
 function render() {
   syncInputs();
   current = compute();
-  const { days, plan: p, budget, reserve, preCount, blackoutCost, marks } = current;
+  const { days, plan: p, budget, planBudget, reserve, preCount, partCount, blackoutCost, marks } = current;
   const kept = Math.max(0, state.pto - preCount - p.used);
-  $('ptoSummary').textContent = `The plan can use ${Math.max(0, budget)} day${Math.max(0, budget) === 1 ? '' : 's'}${preCount ? ` after your ${preCount} pre-booked` : ''}, keeping ${reserve} in reserve.`;
+  const frac = Math.max(0, budget) - planBudget;
+  $('ptoSummary').textContent = `The plan can use ${num(planBudget)} ${dayWord(planBudget)}${preCount ? ` after your ${num(preCount)} pre-booked` : ''}, keeping ${reserve} in reserve${frac > 1e-9 ? ` plus the extra ${num(frac)} ${dayWord(frac)}, since the plan books whole days` : ''}.`;
   const mult = p.used ? (p.totalOff / p.used) : 0;
   const blkDays = marks.blackout.size;
   // Work weeks: Sunday-to-Saturday weeks starting in this year. A day counts as worked unless it's off or planned PTO.
   const normal = 7 - state.weekend.length, wk = { full: 0, four: 0, three: 0, light: 0, total: 0 };
   for (let i = days.findIndex(d => d.dow === 0); i >= 0 && i + 6 < days.length && days[i].inYear; i += 7) {
     let worked = 0;
-    for (let j = i; j < i + 7; j++) { const d = days[j]; if (!d.pto && ['work', 'blackout', 'beyond'].includes(d.status)) worked++; }
+    for (let j = i; j < i + 7; j++) { const d = days[j]; if (!d.pto && ['work', 'blackout', 'beyond', 'partial'].includes(d.status)) worked++; }
     wk.total++;
     if (worked >= normal) wk.full++; else if (worked === 4) wk.four++; else if (worked === 3) wk.three++; else wk.light++;
   }
   $('stats').innerHTML = `
     <div class="stat hi"><span class="k">Days off in breaks</span><span class="v">${p.totalOff}</span></div>
-    <div class="stat"><span class="k">PTO used</span><span class="v">${p.used + preCount}<small> of ${state.pto}${preCount ? ` (${preCount} pre-booked)` : ''}</small></span></div>
-    <div class="stat${kept < reserve ? ' blk' : ''}"><span class="k">Kept in reserve</span><span class="v">${kept}<small> goal ${reserve}${p.left > 0 && budget >= 0 ? ` · ${p.left} unplaced` : ''}</small></span></div>
+    <div class="stat"><span class="k">PTO used</span><span class="v">${num(p.used + preCount)}<small> of ${state.pto}${preCount ? ` (${num(preCount)} pre-booked${partCount ? `, incl. ${num(partCount)} in partial days` : ''})` : ''}</small></span></div>
+    <div class="stat${kept < reserve ? ' blk' : ''}"><span class="k">Kept in reserve</span><span class="v">${num(kept)}<small> goal ${reserve}${p.left > 0 && budget >= 0 ? ` · ${p.left} unplaced` : ''}</small></span></div>
     <div class="stat"><span class="k">Days off per PTO day</span><span class="v">${mult ? mult.toFixed(1) + '×' : '–'}</span></div>
     <div class="stat"><span class="k">Breaks</span><span class="v">${p.breaks.length}</span></div>
     <div class="stat blk"><span class="k">Blackout days</span><span class="v">${blkDays}</span></div>
@@ -803,8 +830,8 @@ function render() {
   const note = $('blkNote'); let msg = '', kind = 'warn';
   const monthList = st => p.months ? p.months.filter(m => m.state === st).map(m => MONTHS[m.m]) : [];
   const shortM = monthList('budget'), blockedM = monthList('blocked');
-  if (preCount > state.pto) msg = `You've pre-booked ${preCount} days but only have ${state.pto} PTO days. Remove some pre-booked days or raise your allotment.`;
-  else if (budget < 0) msg = `Your ${preCount} pre-booked days dip ${-budget} day${budget === -1 ? '' : 's'} into your ${reserve}-day reserve, so the plan adds nothing else.`;
+  if (preCount > state.pto) msg = `You've pre-booked ${num(preCount)} days but only have ${state.pto} PTO days. Remove some pre-booked days or raise your allotment.`;
+  else if (budget < 0) msg = `Your ${num(preCount)} pre-booked days dip ${num(-budget)} ${dayWord(-budget)} into your ${reserve}-day reserve, so the plan adds nothing else.`;
   else if (shortM.length || blockedM.length) msg = [
     shortM.length ? `Not enough PTO for a 3-day weekend in ${shortM.join(', ')}. Add ${shortM.length} day${shortM.length > 1 ? 's' : ''} to cover every month.` : '',
     blockedM.length ? `Blackouts or neighboring long weekends leave no open 3-day weekend in ${blockedM.join(', ')}.` : ''].filter(Boolean).join(' ');
@@ -842,8 +869,8 @@ function render() {
   }).join('') : `<li><p class="empty-state">${state.pto ? 'No breaks fit. Try fewer blackouts or a different style.' : 'Add some PTO days to see a plan.'}</p></li>`;
 
   $('calTitle').textContent = `${state.year} at a glance`;
-  $('counts').innerHTML = [['blackout', 'blackout'], ['prebooked', 'pre-booked'], ['company', 'company']]
-    .map(([m, l]) => `<span>${marks[m].size} ${l}${marks[m].size ? ` · <button type="button" data-clear="${m}">clear</button>` : ''}</span>`).join('');
+  $('counts').innerHTML = [['blackout', 'blackout'], ['prebooked', 'pre-booked'], ['partial', 'partial'], ['company', 'company']]
+    .map(([m, l]) => `<span>${marks[m].size} ${l}${m === 'partial' && marks.partial.size ? ` (${num(partCount)} ${dayWord(partCount)})` : ''}${marks[m].size ? ` · <button type="button" data-clear="${m}">clear</button>` : ''}</span>`).join('');
 
   let html = '';
   for (let m = 0; m < 12; m++) {
@@ -854,8 +881,8 @@ function render() {
     for (let i = 0; i < first.getUTCDay(); i++) cells += `<span class="day empty"></span>`;
     for (let d = 0; d < dim; d++) {
       const day = days[startIdx + d]; if (day.pto) ptoN++;
-      const cls = ['day', day.pto ? 'pto' : day.status, day.inbrk && !day.pto ? 'inbrk' : '', day.past ? 'past' : '', day.yearEnd ? 'ye' : '', day.k === todayKey ? 'today' : ''].join(' ');
-      const tip = [fmtY.format(day.dt), day.pto ? 'Take PTO' : '', day.holiday, day.status === 'blackout' ? 'Blackout' : '', day.status === 'prebooked' ? (day.yearEnd ? 'Year-end week (automatic)' : 'Pre-booked PTO') : '', day.status === 'company' ? 'Company day off' : ''].filter(Boolean).join(' · ');
+      const cls = ['day', day.pto ? 'pto' : day.status, day.part === 0.5 ? 'p50' : day.part === 0.25 ? 'p25' : '', day.inbrk && !day.pto ? 'inbrk' : '', day.past ? 'past' : '', day.yearEnd ? 'ye' : '', day.k === todayKey ? 'today' : ''].join(' ');
+      const tip = [fmtY.format(day.dt), day.pto ? 'Take PTO' : '', day.holiday, day.status === 'blackout' ? 'Blackout' : '', day.status === 'prebooked' ? (day.yearEnd ? 'Year-end week (automatic)' : 'Pre-booked PTO') : '', day.status === 'company' ? 'Company day off' : '', day.part === 0.5 ? 'Half day PTO' : day.part === 0.25 ? 'Quarter day PTO' : ''].filter(Boolean).join(' · ');
       cells += `<button type="button" class="${cls}" data-k="${day.k}" title="${esc(tip)}" aria-label="${esc(tip)}">${d + 1}</button>`;
     }
     const mine = state.manualMonths.includes(m);
@@ -875,23 +902,29 @@ function baseStatus(k) {
   return 'work';
 }
 function canMark(mode, k) { return mode === 'blackout' || baseStatus(k) === 'work'; }
+// Half and quarter days are stored as amounts; every other mark is a set of dates.
+const PART = { half: 0.5, quarter: 0.25 };
+const MARK_SETS = ['blackout', 'prebooked', 'company', 'partial'];
+const MODE_LABEL = { blackout: 'blackout', prebooked: 'pre-booked', half: 'half days', quarter: 'quarter days', company: 'company days off' };
+function clearDay(sets, k) { for (const m of MARK_SETS) sets[m].delete(k); }
+function markDay(sets, mode, k) { clearDay(sets, k); if (PART[mode]) sets.partial.set(k, PART[mode]); else sets[mode].add(k); }
+function hasMark(sets, mode, k) { return PART[mode] ? sets.partial.get(k) === PART[mode] : sets[mode].has(k); }
 $('months').addEventListener('click', e => {
   const btn = e.target.closest('button.day'); if (!btn || btn.classList.contains('empty')) return;
   const k = btn.dataset.k, mode = state.mode, sets = marksFor(state.year);
-  if (mode !== 'blackout' && !e.shiftKey && btn.classList.contains('ye')) { toast('This day is booked by the year-end setting. Turn it off in Vacation style to change it.'); return; }
+  // Year-end days can be blacked out or changed to a half or quarter day; partial marks win over the toggle.
+  if ((mode === 'prebooked' || mode === 'company') && !e.shiftKey && btn.classList.contains('ye')) { toast('This day is booked by the year-end setting. Turn it off in Vacation style to change it.'); return; }
   if (e.shiftKey && lastKey && lastKey !== k) {
     const [a, b] = [lastKey, k].sort(); let n = 0;
     for (const d of current.days) if (d.inYear && d.k >= a && d.k <= b && canMark(mode, d.k)) {
-      for (const m of ['blackout', 'prebooked', 'company']) sets[m].delete(d.k);
-      sets[mode].add(d.k); n++;
+      markDay(sets, mode, d.k); n++;
     }
-    toast(`Marked ${n} day${n === 1 ? '' : 's'} as ${mode === 'prebooked' ? 'pre-booked' : mode === 'company' ? 'company days off' : 'blackout'}`);
-  } else if (sets[mode].has(k)) {
-    sets[mode].delete(k);
+    toast(`Marked ${n} day${n === 1 ? '' : 's'} as ${MODE_LABEL[mode]}`);
+  } else if (hasMark(sets, mode, k)) {
+    clearDay(sets, k);
   } else {
-    if (!canMark(mode, k)) { toast(mode === 'prebooked' ? "That's already a day off, so it doesn't need PTO." : "That's already a day off."); return; }
-    for (const m of ['blackout', 'prebooked', 'company']) sets[m].delete(k);
-    sets[mode].add(k);
+    if (!canMark(mode, k)) { toast(mode === 'blackout' || mode === 'company' ? "That's already a day off." : "That's already a day off, so it doesn't need PTO."); return; }
+    markDay(sets, mode, k);
   }
   lastKey = k; setMarks(state.year, sets); render();
   const again = document.querySelector(`button.day[data-k="${k}"]`); if (again) again.focus({ preventScroll: true });
@@ -933,7 +966,8 @@ function download(text, name, type) {
 $('saveText').onclick = () => {
   const { days, plan: p } = current;
   const lines = p.breaks.map(b => { const d = describe(b, days); return `${d.range} (${b.len} days off): take ${d.take.join(', ')} (${d.pto.length} PTO)`; });
-  download(`Time off plan for ${state.year}: ${p.used} PTO days for ${p.totalOff} days off\n\n` + lines.join('\n'), `pto-plan-${state.year}.txt`, 'text/plain');
+  const parts = days.filter(d => d.inYear && d.part).map(d => `${fmtY.format(d.dt)}: ${d.part === 0.5 ? 'half' : 'quarter'} day`);
+  download(`Time off plan for ${state.year}: ${p.used} PTO days for ${p.totalOff} days off\n\n` + lines.join('\n') + (parts.length ? `\n\nPartial days (${num(current.partCount)} PTO):\n` + parts.join('\n') : ''), `pto-plan-${state.year}.txt`, 'text/plain');
 };
 $('saveIcs').onclick = () => {
   const { days, plan: p } = current;
@@ -943,6 +977,7 @@ $('saveIcs').onclick = () => {
     const d = describe(b, days);
     return ['BEGIN:VEVENT', `UID:pto-${state.year}-${n}-${ymd(d.s)}@pto-bridge-planner`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(d.s)}`, `DTEND;VALUE=DATE:${ymd(utc(d.e.getUTCFullYear(), d.e.getUTCMonth(), d.e.getUTCDate() + 1))}`, `SUMMARY:Time off (${b.len} days)`, `DESCRIPTION:PTO: ${d.take.join('\\, ')}`, 'TRANSP:OPAQUE', 'END:VEVENT'].join('\r\n');
   });
+  for (const d of days) if (d.inYear && d.part) ev.push(['BEGIN:VEVENT', `UID:pto-part-${ymd(d.dt)}@pto-bridge-planner`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(d.dt)}`, `DTEND;VALUE=DATE:${ymd(utc(d.dt.getUTCFullYear(), d.dt.getUTCMonth(), d.dt.getUTCDate() + 1))}`, `SUMMARY:${d.part === 0.5 ? 'Half' : 'Quarter'} day PTO`, 'TRANSP:TRANSPARENT', 'END:VEVENT'].join('\r\n'));
   download(['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PTO Bridge Planner//EN', ...ev, 'END:VCALENDAR'].join('\r\n'), `pto-plan-${state.year}.ics`, 'text/calendar');
 };
 

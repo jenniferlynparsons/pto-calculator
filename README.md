@@ -16,7 +16,17 @@ Open `index.html` in a browser, or use the GitHub Pages site if it's enabled for
 6. **Short breaks only.** In these months the planner allows 3- and 4-day weekends but nothing longer. June, July and August are selected by default.
 7. **Holidays you get.** All US federal holidays, with weekend dates moved to the observed Friday or Monday. Turn off the ones your employer doesn't give. Day after Thanksgiving, Christmas Eve and New Year's Eve are listed as optional extras.
 
-Then mark days on the calendar. Choose what a click marks (**Blackout**, **Pre-booked PTO** or **Company day off**) and click a day. Click it again to clear it. Shift-click a second day to mark the whole range between the two.
+Then mark days on the calendar. Choose what a click marks (**Blackout**, **Pre-booked PTO**, **½ day**, **¼ day** or **Company day off**) and click a day. Click it again to clear it. Shift-click a second day to mark the whole range between the two. The calendar opens with Pre-booked PTO selected.
+
+### Half and quarter days
+
+Half and quarter days are for days you're still around but not working a full day. You can only book them yourself, from the calendar. Everything else in the planner works in whole days, including the PTO steppers and every break it suggests.
+
+- They come out of your balance as 0.5 or 0.25 days, and the stats, reserve and warnings show the fractions.
+- They count as workdays. The planner won't book over them, build a break across them or count them toward a long weekend, and a week with a half day still counts as a full work week.
+- The planner only spends whole days. If your balance after pre-booked days and reserve isn't a whole number, the fraction stays in reserve.
+- With the year-end toggle on, a half or quarter day you mark in that week replaces the full day the toggle would have booked.
+- Both exports include them: the dates list adds a "Partial days" section, and the calendar file adds an event for each one.
 
 The plan recalculates after every change. If a rule can't be met, a warning appears above the calendar and stays in view while you scroll.
 
@@ -47,7 +57,7 @@ The page doesn't list these rules, so this is the reference for how the planner 
 
 ## What it shows
 
-- **Stats:** total days off in breaks, PTO used and kept in reserve, days off per PTO day, number of breaks, blackout days, and full, 4-day and 3-day work weeks.
+- **Stats:** total days off in breaks, PTO used (including partial days) and kept in reserve, days off per PTO day, number of breaks, blackout days, and full, 4-day and 3-day work weeks.
 - **Year at a glance:** a color-coded calendar of PTO, holidays, blackouts, pre-booked days and company days off. This is where you mark days. "Download calendar file" saves the plan as a `.ics` file to import into a calendar app.
 - **Your breaks:** each break with its dates, length, the exact days to take and any holidays it includes. "Download dates" saves a plain list for a time-off request.
 - **Monthly coverage:** a strip above the breaks showing how each month gets its 3-day weekend (Long weekends and Balanced mix only).
